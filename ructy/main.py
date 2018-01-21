@@ -23,16 +23,18 @@ consulta=1&
 codigoUniversidad=
 """
 
-QUERY_TITLE_TMP = """
+QUERY_UNIS_TITLES_TMP = """
 ruct/listaestudiosuniversidad?
 actual=universidades&
 codigoUniversidad={}&
 d-1335801-p={}
 """
 
-
 geolocator = GoogleV3(api_key=sys.argv[1])
 
+
+# TODO create a scrapper object instead of funcions
+# TODO change print to logging module
 
 def get_url(query):
     if query[0] is not "/":
@@ -45,7 +47,7 @@ def get_universities_page_url(page):
 
 
 def get_titles_page_url(uni_id, page):
-    return get_url(QUERY_TITLE_TMP.replace("\n", "").format(uni_id, page))
+    return get_url(QUERY_UNIS_TITLES_TMP.replace("\n", "").format(uni_id, page))
 
 
 def parse_uniersity_data(data_url):
@@ -59,7 +61,7 @@ def parse_uniersity_data(data_url):
     fieldset = html.find("fieldset")
     form = html.find("div", {"id": "formulario"})
     name = form.find("h2").contents[0].contents[0]
-    print(  name)
+    print(name)
 
     for label in fieldset.findAll("label"):
         span_key, span_val = label.findAll("span")
@@ -71,6 +73,7 @@ def parse_uniersity_data(data_url):
             if key == "URL":
                 value = span_val.find("a")["href"]
             elif key == "Mapa":
+                # TODO improve None results, i. e. not found addresses.
                 proposed_address = " ".join([name,
                                              data_dict["Domicilio"].format("s/n", "").format("C/", "")
                                              ])
@@ -78,6 +81,8 @@ def parse_uniersity_data(data_url):
                 value = {"Dirección": location.address,
                          "Latitud": location.latitude,
                          "Longitud": location.longitude}
+
+                # TODO check if API queries complience can stand without this time.sleep due to title scrapping
                 time.sleep(0.02)
             else:
                 value = span_val.contents[0]
@@ -92,12 +97,13 @@ def parse_uniersity_data(data_url):
 def parse_uniersity_centers(centres_url):
     abs_url = get_url(centres_url)
     # print(abs_url)
+    # TODO extract info from centers for given university
     return {"Centros": {"URL": abs_url}}
 
 
 def parse_uniersity_titles(titles_url, uni_data):
     abs_url = get_url(titles_url)
-    titles_dict = {"URL": abs_url}
+    titles_dict = {"URL": abs_url, "Lista": {}}
 
     response = requests.get(abs_url, verify=False)
     html = BeautifulSoup(response.content, "lxml")
@@ -134,21 +140,22 @@ def parse_uniersity_titles(titles_url, uni_data):
             title_name = d_title.pop("Título", BeautifulSoup("<tr></tr>", "lxml"))
             title_a = title_name.find("a")
             d_title["Nombre"] = str(title_a.contents[0])
-            d_title.update({"URL": title_a.get("href")})
+            # TODO extract all info from this URL
+            d_title.update({"URL": get_url(title_a.get("href"))})
 
             title_level = d_title.pop("Nivel académico", BeautifulSoup("<tr></tr>", "lxml"))
             d_title["Nivel académico"] = str(title_level.contents[0])
 
             title_state = d_title.pop("Estado", BeautifulSoup("<tr></tr>", "lxml"))
             d_title["Estado"] = str(title_state.contents[0]).replace("\xa0", "").replace("\n", "")
-            d_title["Estado"] = d_title["Estado"].replace("\r", "").replace("\t", "")
+            d_title["Estado"] = d_title["Estado"].replace("\r", "").replace("\t", "").replace("  ", "")
 
             code_title = d_title.pop("Código", BeautifulSoup("<tr></tr>", "lxml"))
             code_title = code_title.contents[0].replace("\xa0", "")
 
             d_page[code_title] = d_title
 
-        titles_dict.update(d_page)
+        titles_dict["Lista"].update(d_page)
 
     return {"Títulos": titles_dict}
 
@@ -189,6 +196,7 @@ def parse_university_list():
             code_uni = int(d_uni.pop("Código", BeautifulSoup("<tr></tr>", "lxml")).contents[0])
             d_page[code_uni] = d_uni
 
+            # TODO make an export function
             with open("../db/{}.json".format(code_uni), "w", encoding='utf8') as output_file:
                 json.dump(d_uni,
                           output_file,
