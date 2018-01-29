@@ -30,6 +30,13 @@ codigoUniversidad={}&
 d-1335801-p={}
 """
 
+KEY_CREDIT_MAP = {"Nº Créditos de Formación Básica": "CRFB",
+                  "Nº Créditos Obligatorios": "CROB",
+                  "Nº Créditos Optativos": "CROP",
+                  "Nº Créditos en Prácticas Externas": "CREX",
+                  "Nº Créditos Trabajo Fin de Grado/Master": "CRTFG"}
+
+
 geolocator = GoogleV3(api_key=sys.argv[1])
 
 
@@ -101,6 +108,33 @@ def parse_uniersity_centers(centres_url):
     return {"Centros": {"URL": abs_url}}
 
 
+def parse_titles_data(title_url):
+    abs_url = get_url(title_url)
+    data_dict = {"URL": abs_url}
+
+    response = requests.get(abs_url, verify=False)
+    html = BeautifulSoup(response.content, "lxml")
+
+    # First table 'Descripción'
+    tone = html.find("div", {"id": "tone"})
+
+    if tone:
+        for label in tone.findAll("label"):
+            span_key, span_val = label.findAll("span")
+
+            key = span_key.contents[0]
+            key = key.replace(":", "")
+
+            key = KEY_CREDIT_MAP[key] if "Nº" in key else key
+            key = "Código" if key == "Código del título" else key
+
+            key = key.replace("\r", "").replace("\n", "").replace("  ", "")
+
+            data_dict[key] = str(span_val.contents[0])
+
+    return data_dict
+
+
 def parse_uniersity_titles(titles_url, uni_data):
     abs_url = get_url(titles_url)
     titles_dict = {"URL": abs_url, "Lista": {}}
@@ -135,13 +169,19 @@ def parse_uniersity_titles(titles_url, uni_data):
 
         for title in titles:
             d_title = {headers[ii]: col for ii, col in enumerate(title)}
-            d_title.pop("")
+
+            last_column = d_title.pop("").find("a")
+
+            if last_column:
+                d_title["Detalles"] = last_column["href"]
+            else:
+                d_title["Detalles"] = ""
 
             title_name = d_title.pop("Título", BeautifulSoup("<tr></tr>", "lxml"))
             title_a = title_name.find("a")
             d_title["Nombre"] = str(title_a.contents[0])
             # TODO extract all info from this URL
-            d_title.update({"URL": get_url(title_a.get("href"))})
+            d_title["Datos"] = parse_titles_data(title_a.get("href"))
 
             title_level = d_title.pop("Nivel académico", BeautifulSoup("<tr></tr>", "lxml"))
             d_title["Nivel académico"] = str(title_level.contents[0])
@@ -213,5 +253,4 @@ def parse_university_list():
 
 if __name__ == '__main__':
     d = parse_university_list()
-
 
