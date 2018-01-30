@@ -90,7 +90,7 @@ def parse_uniersity_data(data_url):
                          "Longitud": location.longitude}
 
                 # TODO check if API queries complience can stand without this time.sleep due to title scrapping
-                time.sleep(0.02)
+                time.sleep(0.01)
             else:
                 value = span_val.contents[0]
         except Exception as e:
@@ -130,7 +130,38 @@ def parse_titles_data(title_url):
 
             key = key.replace("\r", "").replace("\n", "").replace("  ", "")
 
-            data_dict[key] = str(span_val.contents[0])
+            val_a = span_val.find("a")
+            if val_a:
+                data_dict["{} PDF URL".format(key)] = val_a["href"]
+                value = str(val_a.contents[0])
+            else:
+                value = str(span_val.contents[0])
+
+            data_dict[key] = value
+
+    # Second table 'Fechas y Enlaces a BOE'
+    ttwo = html.find("div", {"id": "ttwo"})
+
+    if ttwo:
+        dates_dict = {}
+        for label in ttwo.findAll("label"):
+            span_key, span_val = label.findAll("span")
+
+            key = span_key.contents[0]
+            key = key.replace(":", "")
+
+            key = key.replace("\r", "").replace("\n", "").replace("  ", "")
+
+            val_a = span_val.find("a")
+            if val_a:
+                dates_dict["{} PDF URL".format(key)] = val_a["href"]
+                value = str(val_a.contents[0]).replace("BOE", "").replace(" ", "")
+            else:
+                value = str(span_val.contents[0])
+
+            dates_dict[key] = value
+
+        data_dict["Fechas"] = dates_dict
 
     return data_dict
 
