@@ -166,6 +166,50 @@ def parse_titles_data(title_url):
     return data_dict
 
 
+def parse_titles_details(details_url):
+    abs_url = get_url(details_url)
+    details_dict = {"URL": abs_url}
+
+    response = requests.get(abs_url, verify=False)
+    html = BeautifulSoup(response.content, "lxml")
+
+    basic_fieldset = html.find("fieldset")
+
+    # print(abs_url)
+
+    basic_dict = {}
+    for label in basic_fieldset.findAll("label"):
+        span_key = label.find("span")
+
+        key = span_key.contents[0]
+        key = key.replace(":", "")
+
+        key = key.replace("\r", "").replace("\n", "").replace("  ", "")
+
+        if "Acuerdo" in key or "Norma" in key or "Condición/Tipo de Vinculación" in key:
+            _, span_val = label.findAll("span")
+
+            val_a = span_val.find("a")
+            if val_a:
+                basic_dict["{} PDF URL".format(key)] = val_a["href"]
+                value = str(val_a.contents[0])
+            else:
+                value = str(span_val.contents[0])
+
+        else:
+            val = label.find("input")
+            try:
+                value = str(val["value"])
+            except (KeyError, TypeError):
+                value = ""
+
+        basic_dict[key] = value
+
+    details_dict["Básicos"] = basic_dict
+
+    return details_dict
+
+
 def parse_uniersity_titles(titles_url, uni_data):
     abs_url = get_url(titles_url)
     titles_dict = {"URL": abs_url, "Lista": {}}
@@ -204,7 +248,7 @@ def parse_uniersity_titles(titles_url, uni_data):
             last_column = d_title.pop("").find("a")
 
             if last_column:
-                d_title["Detalles"] = last_column["href"]
+                d_title["Detalles"] = parse_titles_details(last_column["href"])
             else:
                 d_title["Detalles"] = ""
 
